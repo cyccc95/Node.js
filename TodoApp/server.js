@@ -10,6 +10,9 @@ app.set('view engine', 'ejs'); // ejs  쓰겠다고 등록해줘야 함
 
 app.use('/public', express.static('public')); // public 폴더를 쓸거다
 
+const methodOverride = require('method-override');
+app.use(methodOverride('_method')); // method-override 사용
+
 let db; // 변수 하나 필요
 MongoClient.connect('mongodb+srv://cyccc95:`1q2w3e4r@cluster0.jx7nlat.mongodb.net/?retryWrites=true&w=majority', function(에러, client){
 
@@ -106,7 +109,15 @@ app.delete('/delete', function(요청, 응답){
 app.get('/detail/:id', function(요청, 응답){
   db.collection('post').findOne({_id : parseInt(요청.params.id)}, function(에러, 결과){
     console.log(결과);
-    응답.render('detail.ejs', { data : 결과});
+    응답.render('detail.ejs', { data : 결과 });
+  });
+  
+})
+
+// edit 페이지
+app.get('/edit/:id', function(요청, 응답){
+  db.collection('post').findOne({_id : parseInt(요청.params.id)}, function(에러, 결과){
+    응답.render('edit.ejs', { post : 결과 });
   });
   
 })
