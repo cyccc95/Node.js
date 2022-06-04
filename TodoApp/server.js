@@ -13,6 +13,13 @@ app.use('/public', express.static('public')); // public 폴더를 쓸거다
 const methodOverride = require('method-override');
 app.use(methodOverride('_method')); // method-override 사용
 
+const passport = require('passport'); // passport 라이브러리 첨부
+const LocalStrategy = require('passport-local').Strategy; // passport-local 라이브러리 첨부
+const session = require('express-session'); // express-session 라이브러리 첨부
+app.use(session({secret : '비밀코드', resave : true, saveUninitialized : false}));
+app.use(passport.initialize());
+app.use(passport.session()); // app.use(미들웨어) : 요청-응답 중간에 뭔가 실행되는 코드
+
 let db; // 변수 하나 필요
 MongoClient.connect('mongodb+srv://cyccc95:`1q2w3e4r@cluster0.jx7nlat.mongodb.net/?retryWrites=true&w=majority', function(에러, client){
 
@@ -112,7 +119,7 @@ app.get('/detail/:id', function(요청, 응답){
     응답.render('detail.ejs', { data : 결과 });
   });
   
-})
+});
 
 // edit 페이지
 app.get('/edit/:id', function(요청, 응답){
@@ -120,7 +127,7 @@ app.get('/edit/:id', function(요청, 응답){
     응답.render('edit.ejs', { post : 결과 });
   });
   
-})
+});
 
 // edit 경로로 put 요청
 app.put('/edit', function(요청, 응답){
@@ -128,4 +135,44 @@ app.put('/edit', function(요청, 응답){
     console.log('수정완료');
     응답.redirect('/list'); // 수정하고 list 페이지로 이동
   });
+});
+
+// 로그인 페이지 제작 & 라우팅
+// 회원가입 기능은 아직 안만들어서 db에서 아이디/비번 한쌍을 만들자
+app.get('/login', function(요청, 응답){
+  응답.render('login.ejs')
+});
+app.post('/login', passport.authenticate('local', {
+    failureRedirect : '/fail' // 실패하면 /fail 로 이동해주세요
+  }), function(요청, 응답){ //passport : 로그인 기능 쉽게 구현해줌
+    응답.redirect('/') // 성공하면 home으로 이동해주세요
+});
+
+// 아이디 비번 인증하는 세부 코드 작성 , 인증하는 방법을 strategy라고 칭함
+passport.use(new LocalStrategy({
+  usernameField: 'id', // 사용자가 제출한 아이디가 어디 적혔는지
+  passwordField: 'pw', // 사용자가 제출한 비번이 어디 적혔는지
+  session: true, // 세션을 만들건지
+  passReqToCallback: false, // 아이디/비번 말고 다른 정보검사가 필요한지
+}), function(입력한아이디, 입력한비번, done){ // 아이디/비번 검증해줌
+  // console.log(입력한아이디, 입력한비번);
+  db.collection('login').findOne({id : 입력한아이디}, function(에러, 결과){
+    if(에러) return done(에러)
+    if(!결과) return done(null, false, {message : '존재하지않는 아이디요'}) //DB에 아이디가 없을때
+    if(입력한비번 == 결과.pw){
+      return done(null, 결과)
+    } else {
+      return done(null, false, {message : '비번 틀렸어요'}) // done(서버에러, 성공시사용자db데이터, 에러메세지)
+    }
+  });
+});
+
+// 세션만들기
+// id를 이용해서 세션을 저장시키는 코드
+passport.serializeUser(function(user, done){ // 아이디/비번 검증 성공시 user에 결과가 들어감
+  done(null, user.id)
+});
+// 이 세션 데이터를 가진 사람을 DB에서 찾아주세요(마이페이지 접속시 발동)
+passport.deserializeUser(function(아이디, done){
+  done(null, {})
 });
