@@ -20,8 +20,10 @@ app.use(session({secret : '비밀코드', resave : true, saveUninitialized : fal
 app.use(passport.initialize());
 app.use(passport.session()); // app.use(미들웨어) : 요청-응답 중간에 뭔가 실행되는 코드
 
+require('dotenv').config(); // .env 쓰기 위한 라이브러리
+
 let db; // 변수 하나 필요
-MongoClient.connect('mongodb+srv://cyccc95:`1q2w3e4r@cluster0.jx7nlat.mongodb.net/?retryWrites=true&w=majority', function(에러, client){
+MongoClient.connect(process.env.DB_URL, function(에러, client){
 
   if(에러) return console.log(에러)
   db = client.db('todoapp'); // todoapp 이라는 database(폴더)에 연결
@@ -30,12 +32,12 @@ MongoClient.connect('mongodb+srv://cyccc95:`1q2w3e4r@cluster0.jx7nlat.mongodb.ne
   //   console.log('저장완료');
   // }); // post라는 collection에 데이터 저장
 
-  app.listen(8080, function(){        //위 3줄 : 서버를 띄우기 위한 기본 셋팅(express 라이브러리)
+  app.listen(process.env.PORT, function(){        //위 3줄 : 서버를 띄우기 위한 기본 셋팅(express 라이브러리)
     console.log('listening on 8080')  // listen(서버 띄울 포트번호, 띄운 후 실행할 코드)
   }); 
 
   
-}) // mongodb 클라우드 접속
+}); // mongodb 클라우드 접속
 
 
 // app.listen(8080, function(){        //위 3줄 : 서버를 띄우기 위한 기본 셋팅(express 라이브러리)
@@ -150,11 +152,11 @@ app.post('/login', passport.authenticate('local', {
 
 // 아이디 비번 인증하는 세부 코드 작성 , 인증하는 방법을 strategy라고 칭함
 passport.use(new LocalStrategy({
-  usernameField: 'id', // 사용자가 제출한 아이디가 어디 적혔는지
-  passwordField: 'pw', // 사용자가 제출한 비번이 어디 적혔는지
-  session: true, // 세션을 만들건지
-  passReqToCallback: false, // 아이디/비번 말고 다른 정보검사가 필요한지
-}), function(입력한아이디, 입력한비번, done){ // 아이디/비번 검증해줌
+  usernameField : 'id', // 사용자가 제출한 아이디가 어디 적혔는지
+  passwordField : 'pw', // 사용자가 제출한 비번이 어디 적혔는지
+  session : true, // 세션을 만들건지
+  passReqToCallback : false, // 아이디/비번 말고 다른 정보검사가 필요한지
+}, function(입력한아이디, 입력한비번, done){ // 아이디/비번 검증해줌
   // console.log(입력한아이디, 입력한비번);
   db.collection('login').findOne({id : 입력한아이디}, function(에러, 결과){
     if(에러) return done(에러)
@@ -165,7 +167,7 @@ passport.use(new LocalStrategy({
       return done(null, false, {message : '비번 틀렸어요'}) // done(서버에러, 성공시사용자db데이터, 에러메세지)
     }
   });
-});
+}));
 
 // 세션만들기
 // id를 이용해서 세션을 저장시키는 코드
@@ -174,5 +176,44 @@ passport.serializeUser(function(user, done){ // 아이디/비번 검증 성공�
 });
 // 이 세션 데이터를 가진 사람을 DB에서 찾아주세요(마이페이지 접속시 발동)
 passport.deserializeUser(function(아이디, done){
-  done(null, {})
+  // db에서 위에 있는 user.id로 유저를 찾은 뒤에 유저 정보를 밑에 {}안에 넣음
+  db.collection('login').findOne({id : 아이디}, function(에러, 결과){
+    done(null, 결과)
+  })
+}); //  찾은 정보는 mypage에 접속할때 요청.user에 담김 - app.get('/mypage') 에서 확인
+
+// 로그인한 사람만 들어갈수있는 마이페이지
+app.get('/mypage', 로그인했니, function(요청, 응답){
+  console.log(요청.user)
+  응답.render('mypage.ejs', {사용자 : 요청.user}) // mypage.ejs에 파일에 데이터를 보내줌
+});
+function 로그인했니(요청, 응답, next){ // 미들웨어
+  if(요청.user){ // 로그인 후 세션이 있으면 요청.user가 항상있음
+    next()
+  } else {
+    응답.send('로그인안하셨는데요?')
+  }
+};
+
+// server에서 query string 꺼내는 법
+app.get('/search', function(요청, 응답){
+  let 검색조건 =  [
+    {
+      $search: {
+        index: 'titleSearch',
+        text: {
+          query: 요청.query.value,
+          path: '제목' //제목날짜 둘다 찾고 싶으면 ['제목', '날짜']
+        }
+      }
+    },
+    { $sort : { _id : 1} }, // 찾고 결과를 id 순서로 정렬
+    { $limit : 10}, // 위에서 10개만 가져와주세요
+    { $project : { 제목 : 1, _id: 0, score: { $meta: "searchScore" } } } // 검색 결과에 필터주기 1은 가져오고 0은 안가져옴, score 달라고 하면 줌
+  ];
+  console.log(요청.query.value);  // search index에서 검색
+  db.collection('post').aggregate(검색조건).toArray((에러, 결과) => {
+    console.log(결과)
+    응답.render('search.ejs', {posts : 결과})
+  })
 });
