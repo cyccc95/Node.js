@@ -44,15 +44,8 @@ MongoClient.connect(process.env.DB_URL, function(에러, client){
 //   console.log('listening on 8080')  // listen(서버 띄울 포트번호, 띄운 후 실행할 코드)
 // }); 
 
-// 누군가가 /pet 으로 방문하면 pet 관련된 안내문을 띄워주자
-app.get('/pet', function(요청, 응답){
-  응답.send('펫용품 쇼핑할 수 있는 페이지입니다.');
-});
-
-// 숙제. beauty
-app.get('/beauty', function(요청, 응답){
-  응답.send('뷰티용품 쇼핑할 수 있는 페이지입니다.');
-});
+// /pet, /beauty router 첨부
+app.use('/', require('./routes/shop.js')); // '/'으로 접속하면 shop.js를 routing 하겠다
 
 // html 보내기
 app.get('/', function(요청, 응답){ // /하나만 쓰면 홈
@@ -64,31 +57,7 @@ app.get('/write', function(요청, 응답){
   응답.render('write.ejs');
 });
 
-// 어떤 사람이 /add 경로로 POST 요청을 하면 ~를 해주세요
-// app.post('/add', function(요청, 응답){
-//   응답.send('전송완료');
-//   console.log(요청.body);
-// }); // 전송한 정보는 요청에 저장됨
 
-// 어떤 사람이 /add라는 경로로 post 요청을 하면, 데이터 2개(날짜, 제목)를 보내주는데,
-// 이 때, 'post'라는 이름을 가진 collection에 두개 데이터를 저장하기
-app.post('/add', function(요청, 응답){
-  응답.send('전송완료');
-  // 총게시물갯수 꺼내오기
-  db.collection('counter').findOne({name : '게시물갯수'}, function(에러, 결과){
-    console.log(결과.totalPost);
-    let 총게시물갯수 = 결과.totalPost;
-
-    db.collection('post').insertOne({ _id : 총게시물갯수 + 1, 제목 : 요청.body.title, 날짜 : 요청.body.date }, function(에러, 결과){
-      console.log('저장완료');
-      // totalPost 라는 항목도 1 증가시켜야함 (수정)
-      db.collection('counter').updateOne({name : '게시물갯수'},{$inc : {totalPost:1}},function(에러, 결과){
-        if(에러){return console.log(에러)}
-      });
-    });
-  
-  });
-});
 
 
 
@@ -102,17 +71,6 @@ app.get('/list', function(요청, 응답){
 
 });
 
-// delete 기능
-app.delete('/delete', function(요청, 응답){
-  console.log(요청.body);
-  // 요청.body를 숫자로 변환
-  요청.body._id = parseInt(요청.body._id);
-  // 요청.body에 담겨온 게시물번호를 가진 글을 db에서 찾아서 삭제해주세요
-  db.collection('post').deleteOne(요청.body, function(에러, 결과){
-    console.log('삭제완료');
-    응답.status(200).send({ message : '성공했습니다' }); // 요청 성공하면 응답코드 200을 보내주세요 400은 고객 잘못 실패, 500은 서버 문제 실패
-  })
-});
 
 // 상세페이지 (parameter로 요청가능한 url 백개 만들기)
 app.get('/detail/:id', function(요청, 응답){
@@ -182,6 +140,58 @@ passport.deserializeUser(function(아이디, done){
   })
 }); //  찾은 정보는 mypage에 접속할때 요청.user에 담김 - app.get('/mypage') 에서 확인
 
+// 회원가입
+app.post('/register', function(요청, 응답){
+  db.collection('login').insertOne( { id : 요청.body.id, pw : 요청.body.pw }, function(에러, 결과){
+    응답.redirect('/')
+  } ) // insertOne : db에 저장
+});
+
+// 어떤 사람이 /add 경로로 POST 요청을 하면 ~를 해주세요
+// app.post('/add', function(요청, 응답){
+//   응답.send('전송완료');
+//   console.log(요청.body);
+// }); // 전송한 정보는 요청에 저장됨
+
+// 어떤 사람이 /add라는 경로로 post 요청을 하면, 데이터 2개(날짜, 제목)를 보내주는데,
+// 이 때, 'post'라는 이름을 가진 collection에 두개 데이터를 저장하기
+app.post('/add', function(요청, 응답){
+  응답.send('전송완료');
+  // 총게시물갯수 꺼내오기
+  db.collection('counter').findOne({name : '게시물갯수'}, function(에러, 결과){
+    console.log(결과.totalPost);
+    let 총게시물갯수 = 결과.totalPost;
+
+    let 저장할거 = { _id : 총게시물갯수 + 1, 제목 : 요청.body.title, 날짜 : 요청.body.date, 작성자 : 요청.user._id };
+
+    db.collection('post').insertOne(저장할거, function(에러, 결과){
+      console.log('저장완료');
+      // totalPost 라는 항목도 1 증가시켜야함 (수정)
+      db.collection('counter').updateOne({name : '게시물갯수'},{$inc : {totalPost:1}},function(에러, 결과){
+        if(에러){return console.log(에러)}
+      });
+    });
+  
+  });
+});
+
+
+// delete 기능
+app.delete('/delete', function(요청, 응답){
+  console.log(요청.body);
+  // 요청.body를 숫자로 변환
+  요청.body._id = parseInt(요청.body._id);
+
+  let 삭제할데이터 = { _id : 요청.body._id, 작성자 : 요청.user._id };
+
+  // 요청.body에 담겨온 게시물번호를 가진 글을 db에서 찾아서 삭제해주세요
+  db.collection('post').deleteOne(삭제할데이터, function(에러, 결과){
+    console.log('삭제완료');
+    if(에러) {console.log(에러)};
+    응답.status(200).send({ message : '성공했습니다' }); // 요청 성공하면 응답코드 200을 보내주세요 400은 고객 잘못 실패, 500은 서버 문제 실패
+  })
+});
+
 // 로그인한 사람만 들어갈수있는 마이페이지
 app.get('/mypage', 로그인했니, function(요청, 응답){
   console.log(요청.user)
@@ -217,3 +227,4 @@ app.get('/search', function(요청, 응답){
     응답.render('search.ejs', {posts : 결과})
   })
 });
+
