@@ -231,7 +231,7 @@ app.get('/search', function(요청, 응답){
 
 
 // multer 라이브러리 사용법
-const multer = require('multer');
+let multer = require('multer');
 let storage = multer.diskStorage({
   destination : function(req, file, cb){
     cb(null, './public/image')
@@ -249,7 +249,11 @@ app.get('/upload', function(요청, 응답){
 });
 
 // image 폴더 안에 이미지 저장하기
-app.post('/upload', upload.single('프로필'), function(요청, 응답){
+app.post('/upload', upload.single('profile'), function(요청, 응답){
   응답.send('업로드완료')
 });
 
+// 업로드한 이미지 보여주기
+app.get('/image/:imageName', function(요청, 응답){ // : url 파라미터 문법
+  응답.sendFile( __dirname + '/public/image/' + 요청.params.imageName) // __dirname : 현재 파일경로
+}); // <img src="/image/flower.jpg"> 로 사용 가능
