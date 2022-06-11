@@ -257,3 +257,30 @@ app.post('/upload', upload.single('profile'), function(요청, 응답){
 app.get('/image/:imageName', function(요청, 응답){ // : url 파라미터 문법
   응답.sendFile( __dirname + '/public/image/' + 요청.params.imageName) // __dirname : 현재 파일경로
 }); // <img src="/image/flower.jpg"> 로 사용 가능
+
+//채팅기능 만들기
+
+//채팅방 개설(로그인 기능 필요하니 그 밑에)
+const { ObjectId } = require('mongodb'); //문자를 object형으로 쓰고 싶으면 추가
+
+app.post('/chatroom', 로그인했니, function(요청, 응답){
+  let 저장할거 = {
+    title : '무슨무슨채팅방',
+    member : [ObjectId(요청.body.당한사람id), 요청.user._id], // 채팅당한사람, 채팅건사람
+    date : new Date()
+  }
+  db.collection('chatroom').insertOne(저장할거).then((결과) => { // 콜백함수 대신 then 써도 가능
+    응답.send('성공')
+  })
+});
+
+// /chat 접속, 내가 속한 채팅방 보여주기
+app.get('/chat', 로그인했니, function(요청, 응답){
+  db.collection('chatroom').find({ member : 요청.user._id }).toArray().then((결과) => {
+    응답.render('chat.ejs', { data : 결과 })
+  })
+
+});
+
+
+
