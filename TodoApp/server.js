@@ -1,6 +1,10 @@
 const express = require('express');
 const app = express();
 
+const http = require('http').createServer(app);
+const {Server} = require('socket.io');
+const io = new Server(http); // socket.io 셋팅법, const app ~ 보다 밑에 적어야함
+
 const bodyParser = require('body-parser'); // body-parser 설치 후에 추가
 app.use(bodyParser.urlencoded({extended : true})); // body-parser 설치 후에 추가
 
@@ -32,7 +36,7 @@ MongoClient.connect(process.env.DB_URL, function(에러, client){
   //   console.log('저장완료');
   // }); // post라는 collection에 데이터 저장
 
-  app.listen(process.env.PORT, function(){        //위 3줄 : 서버를 띄우기 위한 기본 셋팅(express 라이브러리)
+  http.listen(process.env.PORT, function(){        //위 3줄 : 서버를 띄우기 위한 기본 셋팅(express 라이브러리)
     console.log('listening on 8080')  // listen(서버 띄울 포트번호, 띄운 후 실행할 코드)
   }); 
 
@@ -296,6 +300,64 @@ app.post('/message', 로그인했니, function(요청, 응답){
   }).catch(()=>{ // 실패했을때
 
   })
+});
+
+// 서버와 유저간 실시간 소통채널 열기
+app.get('/message/:id', 로그인했니, function(요청, 응답){
+  응답.writeHead(200, {
+    "Connection": "keep-alive",
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache"
+  });
+  // 유저에게 데이터 전송
+  db.collection('message').find({ parent : 요청.params.id }).toArray()
+  .then((결과)=>{ // 서버에서 실시간 전송시 문자자료만 전송가능
+    응답.write('event: test\n'); // 보낼데이터이름
+    응답.write('data: '+ JSON.stringify(결과) +'\n\n'); // 보낼데이터
+  })
+
+  // Change Stream 설정법
+  const pipeline = [
+    { $match: { 'fullDocument.parent' : 요청.params.id } } // parent가 ~인것만 감시
+  ];
+  const collection = db.collection('message');
+  const changeStream = collection.watch(pipeline); //.watch 붙이면 실시간 감시해줌
+  changeStream.on('change', (result)=>{ // 해당 컬렉션에 변동생기면 여기 코드 실행
+    // console.log(result.fullDocument) // 수정, 삭제 등 결과
+    응답.write('event: test\n');
+    응답.write('data: '+ JSON.stringify([result.fullDocument]) +'\n\n');
+  });
+
+  
+});
+
+// socket.ejs 보여주기
+app.get('/socket', function(요청, 응답){
+  응답.render('socket.ejs')
+});
+
+// websocket에 접속하면 실행할 코드
+io.on('connection', function(socket){
+  console.log('유저접속됨');
+  
+  // joinroom 이라는 메세지를 받으면 채팅방 넣어주기
+  socket.on('joinroom', function(data){
+    socket.join('room1');
+  });
+
+  // room1 접속 유저들에게 메세지
+  socket.on('room1-send', function(data){
+    io.to('room1').emit('broadcast', data)
+  });
+
+  // 유저가 보낸 메세지 수신
+  socket.on('user-send', function(data){
+    // 서버가 유저에게 메세지 전송
+    io.emit('broadcast', data); // 작명, 데이터
+    // io.to(socket.id).emit('broadcast', data); // 서버-유저1명간 단독 소통
+  });
+
+  
 });
 
 
