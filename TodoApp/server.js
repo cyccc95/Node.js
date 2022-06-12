@@ -282,5 +282,21 @@ app.get('/chat', 로그인했니, function(요청, 응답){
 
 });
 
+// 채팅 메시지 서버에 저장
+app.post('/message', 로그인했니, function(요청, 응답){
+  let 저장할거 = {
+    parent : 요청.body.parent,
+    content : 요청.body.content,
+    userid : 요청.user._id,
+    date : new Date()
+  }
+  db.collection('message').insertOne(저장할거).then(()=>{
+    console.log('성공')
+    응답.send('DB저장성공')
+  }).catch(()=>{ // 실패했을때
+
+  })
+});
+
 
 
